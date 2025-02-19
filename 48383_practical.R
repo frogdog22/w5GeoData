@@ -16,7 +16,7 @@
 
 # The approach used here employs basic linear modeling to identify which climate variables 
 # best predict current species distributions, project how distributions might shift with 
-# future climate change, and isualize results using maps. Note that while this script uses 
+# future climate change, and visualize results using maps. Note that while this script uses 
 # simple linear models, many other approaches exist for species distribution modeling (SDM).
 
 # Load the libraries providing functions for spatial data handling and mapping.
@@ -28,6 +28,7 @@ library(sf)
 library(geodata)
 
 # Now let'sreate a simple project structure if it doesn't exist:
+# this makes a data folder if it doens't already exist 
 sapply(c("data/raw", "data/processed", "output"), function(dir) {
     dir_path <- here(dir)
     if (!dir.exists(dir_path)) dir.create(dir_path, recursive = TRUE)
@@ -206,6 +207,9 @@ rbind(
 # allowing the model to learn patterns associated with species occurrence.
 
 # Question 1: What are the limitations of this approach?
+# 
+# Limitiations could be that it's assuming that species are unlikely to occur there
+# as it's not sampled they don't actually know if they're absent 
 
 # 4.1) Generate random background points for comparison
 
@@ -231,8 +235,13 @@ points(bg, col="black", pch=20, cex=0.7)
 points(species.coords, col="red", pch=20, cex=0.7)
 
 # Question 2: Why is it better not to have too large a region for your background?
+# 
+# not sure - maybe it's to keep similar density of points? 
+# 
 # Question 3: Do you think C. arabica is really absent from all the
 # localities selected as background points? Will it matter?
+# 
+# nope - and yeah kind of? 
 
 # Now we are settled on our area of extent, we can crop the bio.data to just keep values for this region
 # It isn't essential but speeds up some later steps
@@ -284,6 +293,9 @@ plot(wrld_simpl, add = TRUE, border = "dark grey")
 points(species.coords, col="red", pch=20, cex=1.5)
 
 # Question 5: How well do you think the model has predicted the distribution?
+# 
+# Fairly well - there's some areas in the centre where it's prediced things that
+# don't match the data but otherwise it seems alright?
 
 # If you want to show a single map of distribution instead, can convert the
 # probabilities by selecting a threshold that gives the best match between predicted
@@ -381,6 +393,8 @@ plot(pg.future, main = "B) GLM, 2060-2081")
 plot(wrld_simpl, add = TRUE, border = "dark grey")
 points(species.coords, col = "black", pch = 4, cex = 0.5)
 
+
+
 # Question 7: How is the distribution of the species expected to change in the future?
 
 # Extract counts for range changes
@@ -414,3 +428,9 @@ par(mfrow = c(1, 3))
 plot(bio.data[[1]], ext = e, main = "Present Day")
 plot(future.bio.data[[1]], ext = e, main = "2061-2080")
 plot(change.bio.data[[1]], ext = e, main = "Projected Change") 
+
+
+
+
+
+
