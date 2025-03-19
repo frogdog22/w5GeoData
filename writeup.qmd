@@ -1,0 +1,40 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+```{r setup}
+library(here)
+library(dismo)
+library(rworldmap)
+library(sf)
+library(geodata)
+library(tidyverse)
+```
+
+#### Question 1 
+
+```{r downloadMegarhyssaData}
+
+megarhyssa.gbif_file <- here("data", "raw", "megarhyssa.gbif.rds")
+if (!file.exists(megarhyssa.gbif_file)) {
+    megarhyssa.gbif <- gbif("megarhyssa", "macrura", geo = TRUE)
+    saveRDS(megarhyssa.gbif, megarhyssa.gbif_file)
+} else {
+    megarhyssa.gbif <- readRDS(megarhyssa.gbif_file)
+}
+```
+
+#### Question 2 
+```{r downloadTremexData}
+
+tremex.gbif_file <- here("data", "raw", "tremex.gbif.rds")
+if (!file.exists(tremex.gbif_file)) {
+    tremex.gbif <- gbif("tremex", "columba", geo = TRUE)
+    saveRDS(tremex.gbif, tremex.gbif_file)
+} else {
+    tremex.gbif <- readRDS(tremex.gbif_file)
+}
+```
+
