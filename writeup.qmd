@@ -1,40 +1,231 @@
 ---
-title: "Untitled"
+title: "Computing Assignment: Geo-data and Methods in R"
 format: html
 editor: visual
 ---
 
-```{r setup}
+```{r}
+#| label: packages
+#| output: false
+#| warning: false
+
 library(here)
 library(dismo)
 library(rworldmap)
 library(sf)
 library(geodata)
 library(tidyverse)
+library(kableExtra)
 ```
 
-#### Question 1 
+#### Question 1 - Species 1 Distribution Modelling 
 
-```{r downloadMegarhyssaData}
+**Run linear models to predict the present-day distribution of species 1 using climate variables and use them to present a map of its current distribution. Which set of climatic variables best explain the current distribution of the species?**
 
-megarhyssa.gbif_file <- here("data", "raw", "megarhyssa.gbif.rds")
-if (!file.exists(megarhyssa.gbif_file)) {
-    megarhyssa.gbif <- gbif("megarhyssa", "macrura", geo = TRUE)
-    saveRDS(megarhyssa.gbif, megarhyssa.gbif_file)
-} else {
-    megarhyssa.gbif <- readRDS(megarhyssa.gbif_file)
+```{r}
+#| label: prepDataFunction
+#| output: false
+#| warning: false
+
+prepData <- function(genus, species, rawFilename, processedFilename) {
+  
+  ### Downloading the data ###
+  
+  # Checks if the species data is already downloaded 
+  if (!file.exists(here("data", "raw", rawFilename))) {
+    # If not already downloaded, species data is downloaded from GBIF
+    species.gbif <- gbif(genus, species, geo = TRUE)
+    # The data is saved locally so it doesn't have to be downloaded again
+    saveRDS(species.gbif, here("data", "raw", rawFilename))
+  } else {
+    # If the data is already downloaded the file is read
+    species.gbif <- readRDS(here("data", "raw", rawFilename))
+  }
+  
+  ### Cleaning the data ###
+  
+  species.coords <- species.gbif %>% 
+    # Pull out the lat and lon columns
+    transmute(lon, lat) %>% 
+    # Remove empty rows 
+    na.omit() %>% 
+    # Ensure it's set to be a data frame
+    as.data.frame()
+  
+  
+  ### Remove the ocean areas from the map ###
+  
+  # Load world map
+  wrld_simpl <- getMap(resolution = "coarse")
+  
+  # Download ocean data
+  ocean_data_dir <- here("data", "raw", "ocean")
+  if (!dir.exists(ocean_data_dir)) dir.create(ocean_data_dir)
+  URL <- "https://naturalearth.s3.amazonaws.com/110m_physical/ne_110m_ocean.zip"
+  zip_file <- file.path(ocean_data_dir, basename(URL))
+  if (!file.exists(zip_file)) {
+    download.file(URL, zip_file)
+  }
+  
+  # Unzip to ocean data directory and read shapefile
+  files <- unzip(zip_file, exdir = ocean_data_dir)
+  oceans <- read_sf(grep("shp$", files, value = TRUE))
+  
+  # Convert coordinates to a spatial features (sf) object for GIS operations
+  species.coords <- st_as_sf(species.coords, coords = c("lon", "lat"))
+  # Set the coordinate reference system (CRS) to match the oceans data
+  st_crs(species.coords) <- st_crs(oceans)
+  sf_use_s2(FALSE)  # Disable spherical geometry
+  
+  # Find where out points intersect with the ocean
+  tmp <- sapply(st_intersects(species.coords, oceans), function(z) if (length(z) == 0) NA_integer_ else z[1])
+  
+  # Remove points that intersect with the ocean and convert back to table of coordinates
+  if (sum(!is.na(tmp)) > 0) {
+    species.coords <- data.frame(st_coordinates(species.coords[is.na(tmp), ]))
+  } else {
+    species.coords <- data.frame(st_coordinates(species.coords))
+  }
+  colnames(species.coords) <- c("lon", "lat")
+
+  
+  ### Extract climatic values for locations occupied by the species ###
+  
+  # Download bioclimatic data from the worldclim database and convert to Raster format
+  bio.data <- worldclim_global(var = "bio", res = 10, path = here("data", "raw"))
+  names(bio.data) <- paste0("bio", 1:19)
+  
+  # Extracting bioclimatic data for the focal localities where species is found
+  bio.values <- terra::extract(bio.data, species.coords)[, -1]
+  rownames(bio.values) <- rownames(species.coords)
+  
+  # Append to lat long, remove rows with missing data, and save to file for future use
+  species.data <- cbind(species.coords, bio.values)
+  write.csv(species.data, file = here("data", "processed", processedFilename), row.names = FALSE)
+  
+  
+  ### Generate random background points for comparison in model ###
+  
+  # Define study extent based on species occurrence data (with some buffer around it)
+  e <- extent(
+    min(species.coords$lon) - 5,
+    max(species.coords$lon) + 5,
+    min(species.coords$lat) - 5,
+    max(species.coords$lat) + 5
+  )
+  
+  # Create a mask from the world map for the study region
+  mask <- rasterize(wrld_simpl, raster(e, res = 0.5))
+  
+  # Generate 500 random background points within the study region
+  bg <- randomPoints(mask, 500, ext = e)
+  colnames(bg) <- c("lon", "lat")
+  
+  # Crop the bio.data to just keep values for this region
+  bio.data <- crop(bio.data, e)
+  
+  
+  ### Combine the presence data and the background data in one data frame ###
+  
+  train <- rbind(species.coords, bg)
+  # Create a vector of 1s and 0s to indicate presence/absence
+  pb_train <- c(rep(1, nrow(species.coords)), rep(0, nrow(bg)))
+  # Extract the bioclimatic data for the presence and background points
+  envtrain <- terra::extract(bio.data, train)
+  envtrain <- data.frame(cbind(pa = pb_train, envtrain))
+  # And for each set separately
+  testpres <- data.frame(terra::extract(bio.data, species.coords))
+  testbackg <- data.frame(terra::extract(bio.data, bg))
+  
+  # Saves the variables needed for the gm model as a list to be used later
+  return(list(envtrain = envtrain, 
+              testpres = testpres, 
+              testbackg = testbackg, 
+              bio.data = bio.data, 
+              species.coords = species.coords))
 }
 ```
 
-#### Question 2 
-```{r downloadTremexData}
+```{r}
+#| label: prepDataMegarhyssa
+#| warning: false
 
-tremex.gbif_file <- here("data", "raw", "tremex.gbif.rds")
-if (!file.exists(tremex.gbif_file)) {
-    tremex.gbif <- gbif("tremex", "columba", geo = TRUE)
-    saveRDS(tremex.gbif, tremex.gbif_file)
-} else {
-    tremex.gbif <- readRDS(tremex.gbif_file)
-}
+modelPrep <- prepData(
+  genus = "megarhyssa",
+  species = "macrura ",
+  rawFilename = "megarhyssa.gbif.rds",
+  processedFilename = "megarhyssa.csv" 
+)
 ```
+```{r}
+#| label: evaluateModelFuction
+
+evaluateModel <- function(modelList) {
+  
+  # Set up data frame to store the results in 
+  results <- data.frame(Model = character(), 
+                        AUC = numeric(), 
+                        AIC = numeric(), 
+                        stringsAsFactors = FALSE)
+  
+  # Set up the for loop 
+  for (name in names(modelList)) {
+    # Create the model
+    model <- glm(modelList[[name]], family = binomial(link = "logit"), data = modelPrep$envtrain)
+    # Evaluate model
+    eval <- evaluate(modelPrep$testpres, modelPrep$testbackg, model)
+    # Extract AUC and AIC
+    auc <- eval@auc
+    # Extract AIC
+    aic <- AIC(model)
+    # Store results in data frame
+    results <- rbind(results, data.frame(Model = name, AUC = auc, AIC = aic))
+  }
+  
+  # Output the results
+  return(results)
+}
+
+```
+
+```{r}
+initialList <- list("gm1" = pa ~ bio1, 
+                    "gm2" = pa ~ bio2,
+                    "gm3" = pa ~ bio3,
+                    "gm4" = pa ~ bio4,
+                    "gm5" = pa ~ bio5, 
+                    "gm6" = pa ~ bio6,
+                    "gm7" = pa ~ bio7,
+                    "gm8" = pa ~ bio8,
+                    "gm9" = pa ~ bio9,
+                    "gm10" = pa ~ bio10)
+
+initialModels <- evaluateModel(initialList)
+
+initialModels %>%
+  kbl() %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+```{r}
+#| label: moreComplexModels
+
+refinedList <- list("gm11"  = pa ~ bio1 + bio2, 
+                    "gm12"  = pa ~ bio1 + bio5,
+                    "gm13"  = pa ~ bio1 + bio10,
+                    "gm14"  = pa ~ bio2 + bio5,
+                    "gm15"  = pa ~ bio2 + bio10,
+                    "gm16" = pa ~ bio5 + bio10,
+                    "gm17" = pa ~ bio1 + bio2 + bio5,
+                    "gm18" = pa ~ bio1 + bio2 + bio10,
+                    "gm19" = pa ~ bio1 + bio5 + bio10,
+                    "gm20" = pa ~ bio2 + bio5 + bio10,
+                    "gm21" = pa ~ bio1 + bio2 + bio5 + bio10)
+
+refinedModels <- evaluateModel(refinedList)
+
+refinedModels %>%
+  kbl() %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+
 
