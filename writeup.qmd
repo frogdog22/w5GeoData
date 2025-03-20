@@ -9,6 +9,7 @@ editor: visual
 #| output: false
 #| warning: false
 
+# Load packages
 library(here)
 library(dismo)
 library(rworldmap)
@@ -16,6 +17,11 @@ library(sf)
 library(geodata)
 library(tidyverse)
 library(kableExtra)
+library(gridExtra)
+
+  
+# Load world map
+wrld_simpl <- getMap(resolution = "coarse")
 ```
 
 #### Question 1 - Species 1 Distribution Modelling 
@@ -54,9 +60,6 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
   
   
   ### Remove the ocean areas from the map ###
-  
-  # Load world map
-  wrld_simpl <- getMap(resolution = "coarse")
   
   # Download ocean data
   ocean_data_dir <- here("data", "raw", "ocean")
@@ -142,7 +145,8 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
               testpres = testpres, 
               testbackg = testbackg, 
               bio.data = bio.data, 
-              species.coords = species.coords))
+              species.coords = species.coords,
+              e = e))
 }
 ```
 
@@ -150,7 +154,7 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
 #| label: prepDataMegarhyssa
 #| warning: false
 
-modelPrep <- prepData(
+megarhyssaPrep <- prepData(
   genus = "megarhyssa",
   species = "macrura ",
   rawFilename = "megarhyssa.gbif.rds",
@@ -160,7 +164,7 @@ modelPrep <- prepData(
 ```{r}
 #| label: evaluateModelFuction
 
-evaluateModel <- function(modelList) {
+evaluateModel <- function(modelList, envtrain, testpres, testbackg) {
   
   # Set up data frame to store the results in 
   results <- data.frame(Model = character(), 
@@ -171,9 +175,9 @@ evaluateModel <- function(modelList) {
   # Set up the for loop 
   for (name in names(modelList)) {
     # Create the model
-    model <- glm(modelList[[name]], family = binomial(link = "logit"), data = modelPrep$envtrain)
+    model <- glm(modelList[[name]], family = binomial(link = "logit"), data = envtrain)
     # Evaluate model
-    eval <- evaluate(modelPrep$testpres, modelPrep$testbackg, model)
+    eval <- evaluate(testpres, testbackg, model)
     # Extract AUC and AIC
     auc <- eval@auc
     # Extract AIC
@@ -188,7 +192,7 @@ evaluateModel <- function(modelList) {
 
 ```
 
-```{r}
+```{r initialModelsMergarhyssa}
 initialList <- list("gm1" = pa ~ bio1, 
                     "gm2" = pa ~ bio2,
                     "gm3" = pa ~ bio3,
@@ -200,7 +204,10 @@ initialList <- list("gm1" = pa ~ bio1,
                     "gm9" = pa ~ bio9,
                     "gm10" = pa ~ bio10)
 
-initialModels <- evaluateModel(initialList)
+initialModels <- evaluateModel(modelList = initialList,
+                               envtrain = megarhyssaPrep$envtrain,
+                               testpres = megarhyssaPrep$testpres,
+                               testbackg = megarhyssaPrep$testbackg)
 
 initialModels %>%
   kbl() %>%
@@ -221,11 +228,140 @@ refinedList <- list("gm11"  = pa ~ bio1 + bio2,
                     "gm20" = pa ~ bio2 + bio5 + bio10,
                     "gm21" = pa ~ bio1 + bio2 + bio5 + bio10)
 
-refinedModels <- evaluateModel(refinedList)
+refinedModels <- evaluateModel(modelList = refinedList,
+                               envtrain = megarhyssaPrep$envtrain,
+                               testpres = megarhyssaPrep$testpres,
+                               testbackg = megarhyssaPrep$testbackg)
 
 refinedModels %>%
   kbl() %>%
   kable_styling(full_width = FALSE, position = "center")
 ```
 
+```{r}
+#| label: plotModelFunction 
 
+plottingModel <- function(formula, bio.data, species.coords, envtrain, testpres, testbackg, e){
+  # Model 
+  gm <- glm(formula,
+            family = binomial(link = "logit"), 
+            data = envtrain)
+  
+  # Predict pg, a raster layer representing the probability of occurance from the linear model for area of     extent e
+  pg <- predict(bio.data, gm, ext = e, type = "response")
+  pg <- crop(pg, e)
+  
+  # Set up so the plots will go side by side
+  par(mfrow = c(2,1))
+  
+  # Plot this probability layer
+  print(plot(pg, main = "GLM probability of occurrence"))
+  # Add country boundaries
+  print(plot(wrld_simpl, add = TRUE, border = "dark grey"))
+  # Add our observed locality data
+  print(points(species.coords, col="red", pch=20, cex=1.5))
+  
+  # Evaluates how well the model predicts presence/absence at each point
+  ge <- evaluate(testpres, testbackg, gm)
+  print(ge)
+  
+  # This evaluation picks a threshold probability for defining presence/absence
+  tr <- threshold(ge, "prevalence")
+  print(plot(pg > tr, main = "presence/absence"))
+  print(plot(wrld_simpl, add = TRUE, border = "dark grey"))
+  print(points(species.coords, col="red", pch = 20, cex = 1.5))
+}
+```
+
+```{r}
+#| label: plotMegarhyssa
+#| results: "hide"
+#| fig-width: 8
+#| fig-height: 12
+
+plottingModel(formula = pa ~ bio1 + bio2 + bio5 + bio10,
+              bio.data = megarhyssaPrep$bio.data,
+              species.coords = megarhyssaPrep$species.coords,
+              envtrain = megarhyssaPrep$envtrain,
+              testpres = megarhyssaPrep$testpres,
+              testbackg = megarhyssaPrep$testbackg,
+              e = megarhyssaPrep$e)
+```
+
+#### Question 2 - Species 2 Distribution Modelling 
+
+**Run linear models to predict the present-day distribution of species 2 using climate variables and use them to present a map of its current distribution. Which set of climatic variables best explain the current distribution of the species?**
+
+```{r}
+#| label: prepDataTremex
+
+tremexPrep <- prepData(
+  genus = "tremex",
+  species = "columba",
+  rawFilename = "tremex.gbif.rds",
+  processedFilename = "tremex.csv" 
+)
+```
+```{r initialModelsTremex}
+initialList <- list("gm1" = pa ~ bio1, 
+                    "gm2" = pa ~ bio2,
+                    "gm3" = pa ~ bio3,
+                    "gm4" = pa ~ bio4,
+                    "gm5" = pa ~ bio5, 
+                    "gm6" = pa ~ bio6,
+                    "gm7" = pa ~ bio7,
+                    "gm8" = pa ~ bio8,
+                    "gm9" = pa ~ bio9,
+                    "gm10" = pa ~ bio10)
+
+initialModels <- evaluateModel(modelList = initialList,
+                               envtrain = tremexPrep$envtrain,
+                               testpres = tremexPrep$testpres,
+                               testbackg = tremexPrep$testbackg)
+
+initialModels %>%
+  kbl() %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+```{r}
+#| label: refinedTremexModels
+
+refinedList <- list("gm11" = pa ~ bio2 + bio3, 
+                    "gm12" = pa ~ bio2 + bio7,
+                    "gm13" = pa ~ bio2 + bio10,
+                    "gm14" = pa ~ bio3 + bio7,
+                    "gm15" = pa ~ bio3 + bio10, 
+                    "gm16" = pa ~ bio7 + bio10,
+                    "gm17" = pa ~ bio2 + bio3 + bio7,
+                    "gm18" = pa ~ bio2 + bio3 + bio10,
+                    "gm19" = pa ~ bio2 + bio7 + bio10,
+                    "gm20" = pa ~ bio3 + bio7 + bio10,
+                    "gm21" = pa ~ bio2 + bio3 + bio7 + bio10)
+
+refinedModels <- evaluateModel(modelList = refinedList,
+                               envtrain = tremexPrep$envtrain,
+                               testpres = tremexPrep$testpres,
+                               testbackg = tremexPrep$testbackg)
+
+refinedModels %>%
+  kbl() %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+```{r}
+#| label: plotTremex
+#| results: "hide"
+#| fig-width: 8
+#| fig-height: 12
+
+plottingModel(formula = pa ~ bio2 + bio3 + bio7 + bio10,
+              bio.data = tremexPrep$bio.data,
+              species.coords = tremexPrep$species.coords,
+              envtrain = tremexPrep$envtrain,
+              testpres = tremexPrep$testpres,
+              testbackg = tremexPrep$testbackg,
+              e = tremexPrep$e)
+```
+
+
+#### Question 3 - Distribution Overlap 
+**Plot the overlap in distribution of the two species. Devise and calculate a metric for the degree of overlap between their ranges, explaining how you calculated it.**
