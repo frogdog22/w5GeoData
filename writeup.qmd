@@ -18,6 +18,7 @@ library(geodata)
 library(tidyverse)
 library(kableExtra)
 library(gridExtra)
+library(cols4all)
 
   
 # Load world map
@@ -363,5 +364,102 @@ plottingModel(formula = pa ~ bio2 + bio3 + bio7 + bio10,
 ```
 
 
-#### Question 3 - Distribution Overlap 
+#### Question 3 - Distribution Overlap
+
 **Plot the overlap in distribution of the two species. Devise and calculate a metric for the degree of overlap between their ranges, explaining how you calculated it.**
+
+```{r}
+### First species ###
+
+# Runs the linear model
+gm1 <- glm(pa ~ bio1 + bio2 + bio5 + bio10,
+          family = binomial(link = "logit"), 
+          data = megarhyssaPrep$envtrain)
+
+# Predict pg, a raster layer representing the probability of occurance 
+# from the linear model for area of extent e
+pg1 <- predict(megarhyssaPrep$bio.data, 
+               gm1, 
+               ext = megarhyssaPrep$e, 
+               type = "response")
+
+# Crop pg to e
+pg1 <- crop(pg1, megarhyssaPrep$e)
+
+# Evaluates how well the model predicts presence/absence at each point
+ge1 <- evaluate(megarhyssaPrep$testpres, megarhyssaPrep$testbackg, gm1)
+
+# This evaluation picks a threshold probability for defining presence/absence
+tr1 <- threshold(ge1, "prevalence")
+
+# Saves where the model predicts the species to be present
+presence1 <- pg1 > tr1
+presence1 <- mask(presence1, presence1, maskvalue = FALSE)
+
+### Second species ###
+
+# Runs the linear model 
+gm2 <- glm(pa ~ bio2 + bio3 + bio7 + bio10,
+           family = binomial(link = "logit"), 
+           data = tremexPrep$envtrain)
+
+# Predict pg, a raster layer representing the probability of occurance 
+# from the linear model for area of extent e
+pg2 <- predict(tremexPrep$bio.data, 
+               gm2, 
+               ext = megarhyssaPrep$e, 
+               type = "response")
+
+# Crop pg to e
+pg2 <- crop(pg2, megarhyssaPrep$e)
+
+# Evaluates how well the model predicts presence/absence at each point
+ge2 <- evaluate(tremexPrep$testpres, tremexPrep$testbackg, gm2)
+
+# This evaluation picks a threshold probability for defining presence/absence
+tr2 <- threshold(ge2, "prevalence")
+
+# Saves where the model predicts the species to be present
+presence2 <- pg2 > tr2
+presence2 <- mask(presence2, presence2, maskvalue = FALSE)
+
+### Overlap ###
+
+# Identify areas where both species are predicted to be present
+overlap <- presence1 & presence2
+
+# Mask to remove FALSE values
+overlap <- mask(overlap, overlap, maskvalue = FALSE)
+
+plot(overlap)
+plot(wrld_simpl, add = TRUE, border = "dark grey")
+
+
+### Area calculations ###
+
+area(overlap)
+
+area1 <- expanse(presence1, unit = "km")
+area2 <- expanse(presence2, unit = "km")
+areaOverlap <- expanse(overlap, unit = "km")
+
+overlapMetric = areaOverlap / ((area1 + area2) - areaOverlap)
+
+overlapMetric
+
+### Plotting ###
+
+# Sorting out where the map is 
+> wrld_simpl <- vect(wrld_simpl)  # Convert to terra's vector format
+> wrld_simpl <- crop(wrld_simpl, presence1) 
+
+# Plotting the two predicted species distributions, and the predicted overlap
+plot(presence1, col = "#88CCEE")
+plot(presence2, col = "#CC6677", add = TRUE)
+plot(overlap, col = "#332288", add = TRUE)
+plot(wrld_simpl, add = TRUE, border = "dark grey")
+```
+
+#### Question 4 - Interspecies Distribution Dependence
+
+**Use a linear model to test whether the distribution of species 1 at the present time depends on the distribution of species 2, while also taking account of the effects of climatic variables.**
