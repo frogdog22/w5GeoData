@@ -182,7 +182,7 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
 #| label: evaluateModelFuction
 #| output: false
 
-#' Evaluate general linear models
+#' Evaluate general linear models function
 #' 
 #' For every general linear model formula in a list, runs the general linear 
 #' model assuming binomial errors, extracts the AIC and AUC values, and saves
@@ -232,7 +232,7 @@ evaluateModel <- function(modelList, envtrain, testpres, testbackg) {
 ```{r}
 #| label: plotModelFunction 
 
-#' Plotting GLM results
+#' Plotting GLM results function
 #' 
 #' Plots the GLM probability of occurance and the predicted presence/absence 
 #' locations for a species
@@ -508,8 +508,8 @@ plottingModel(formula = pa ~ bio1 + bio2 + bio3 + bio5 + bio6 + bio7 + bio9,
               testbackg = species2Prep$testbackg,
               e = species2Prep$e)
 ```
-The same process was used to determine the climatic values that best describe species 2, Tremex columba, as were used to describe Megarhyssa macura. First, every climatic variable was tested, allowing for the selection of variables with high AUC, low AIC and high significance to be taken forward. Multiple models were then tested using these variables. The model with the highest AUC and lowest AIC was gm20, which used all variables. To avoid overfitting the data, the next best model, gm22, was used. The variables which were included in this model and are used to predict the distribution of the species are annual mean temperature, mean diurnal range, isothermality, max temperature of warmest month, min temperature of coldest month, temperature annual range and mean temperature of driest quarter. Of note is that these variables are mostly associated with temperature, whilst those of M. macura are more focussed on precipitation. 
 
+The same process was used to determine the climatic values that best describe species 2, Tremex columba, as were used to describe Megarhyssa macura. First, every climatic variable was tested, allowing for the selection of variables with high AUC, low AIC and high significance to be taken forward. Multiple models were then tested using these variables. The model with the highest AUC and lowest AIC was gm20, which used all variables. To avoid overfitting the data, the next best model, gm22, was used. The variables which were included in this model and are used to predict the distribution of the species are annual mean temperature, mean diurnal range, isothermality, max temperature of warmest month, min temperature of coldest month, temperature annual range and mean temperature of driest quarter. Of note is that these variables are mostly associated with temperature, whilst those of M. macura are more focussed on precipitation.
 
 #### Question 3 - Distribution Overlap
 
@@ -517,7 +517,7 @@ The same process was used to determine the climatic values that best describe sp
 
 ```{r}
 #| label: distributionOverlap
-#| fig-cap: "Plot of the predicted species distributions of Megarhyssa macrura, Tremex columba and their overlap, based on glm models including climatic variables."
+#| fig-cap: "Plot of the predicted current species distributions of Megarhyssa macrura, Tremex columba and their overlap, based on glm models including climatic variables."
 
 ### First species ###
 
@@ -605,7 +605,7 @@ overlapResults <- data.frame(
   Overlap_Metric = overlapMetric
 )
 
-# Outputs the dataframe as a kable 
+# Outputs the dataframe as a table 
 overlapResults %>%
   kbl() %>%
   kable_styling(full_width = FALSE, position = "center")
@@ -619,7 +619,7 @@ wrld_simpl_vect <- vect(wrld_simpl)
 wrld_simpl_vect <- crop(wrld_simpl_vect, presence1) 
 
 # Plotting the two predicted species distributions, and the predicted overlap
-plot(presence1, col = "#88CCEE", main = "Species Distribution Overlap",legend = FALSE)
+plot(presence1, col = "#88CCEE", main = "Predicted Species Distribution Overlap",legend = FALSE)
 plot(presence2, col = "#CC6677", add = TRUE, legend = FALSE)
 plot(overlap, col = "#332288", add = TRUE, legend = FALSE)
 plot(wrld_simpl_vect, add = TRUE, border = "dark grey")
@@ -632,8 +632,8 @@ legend(x = -76.2, # Set legend x location
        border = "black", # Add border to the legend
        cex = 0.7) # Change the size of the legend 
 ```
-Two spatrasters, presence1 and presence2, are set up to show the predicted areas each species is present in. These are used to create a third spatraster, showing the species overlap. The areas are then extracted from these, and used to create the overlap metric, the formulae for which is: 
-$$
+
+Two SpatRasters, presence1 and presence2, are set up to show the predicted areas each species is present in. These are used to create a third spatraster, showing the species overlap. The areas are then extracted from these, and used to create the overlap metric, the formulae for which is: $$
 overlap\space metric = \frac {overlap\space area}{species\space 1\space area\space + species\space 1\space area\space - overlap\space area}
 $$
 
@@ -644,30 +644,42 @@ This is also represented visually, through a plot showing the predicted distribu
 **Use a linear model to test whether the distribution of species 1 at the present time depends on the distribution of species 2, while also taking account of the effects of climatic variables.**
 
 ```{r}
+#| label: interspeciesDistributionDependence
+
 # Extracting the probability of the presence of species 2 at each of 
 # species 1's coordinates
-species2Probability <- terra::extract(pg2, megarhyssaPrep$train)
+species2Probability <- terra::extract(pg2, species1Prep$train)
 
 # Attaching the probability of species 2 presence to the data used to to model
 # species 1
-species1Model <- megarhyssaPrep$envtrain %>% 
+species1Model <- species1Prep$envtrain %>% 
   merge(species2Probability) %>% 
   rename("species2" = "lyr1") %>% 
   mutate(species2 = scale(species2))
   
 # Run the linear model 
-gm3 <- glm(pa ~ species2 + bio1 + bio2 + bio5 + bio10,
+gm3 <- glm(pa ~ species2 + bio1 + bio2 + bio3 + bio14 + bio15 + bio16 + bio17 + bio18 + bio19,
            family = binomial(link = "logit"), 
            data = species1Model)
+
+# Output the results of the linear model
 summary(gm3)
 
 ```
+
+As the coordinates of the *M. macrura* and *T. columba* observations don't match up exactly, whether or not *T. columba* is present at each observation of *M. macrura* must be made based on the presence and absence predictions for *T. columba* made in question 1. This gives the probability that *T. columba* is present at each observation of *M. macrura.* Then, using an adaptation of the linear model for *M. macrura* determined in question 1, including the probability of species 2 presence, the interspecies distribution dependence is tested.
+
+The results of the linear model are significant, with a p value \< 0.001. This suggests that the distribution of *M. macrura* depends on the distribution of *T. columba*. This result is to be expected, as *M. macrura* is a parasitoid of *T. columba*, oviposititioning it's eggs into *T. columba* larvae.
 
 #### Question 5 - Future Distribution Prediction
 
 **Predict the future distribution of each species using CMIP6 data for future climate and predict how the degree of overlap in ranges change will change in that time. Do you expect the two species to co-occur more often or less often than at the present?**
 
 ```{r}
+#| label: futureDistributionPrediction
+#| fig-cap: "Plot of the predicted species distributions of Megarhyssa macrura, Tremex columba and their overlap in 2061 to 2080 Predictions based on glm models including climatic variables."
+
+# Download the CMIP6 data for 2061 to 2080
 future.bio.data <- cmip6_world(
   model = "CanESM5",
   var = "bio", 
@@ -677,68 +689,91 @@ future.bio.data <- cmip6_world(
   path = here("data", "raw")
 )
 
-names(future.bio.data) <- names(megarhyssaPrep$bio.data)
+# Sets the column names to match those of bio.data
+names(future.bio.data) <- names(species1Prep$bio.data)
 
 # Crop future climate data to region of interest for efficiency
-future.bio.data <- crop(future.bio.data, megarhyssaPrep$e)
+future.bio.data <- crop(future.bio.data, species1Prep$e)
 
 
-### Species 1 ###
+### Species 1 
 
 # Calculate predictions for present and future
-pg1Future <- predict(future.bio.data, gm1, ext =  megarhyssaPrep$e, type = "response")
-pg1Future <- crop(pg1Future,  megarhyssaPrep$e)
+pg1Future <- predict(future.bio.data, gm1, ext =  species1Prep$e, type = "response")
+pg1Future <- crop(pg1Future,  species1Prep$e)
 
 # Saves where the model predicts the species to be present in the future
 futurePresence1 <- pg1Future > tr1
 futurePresence1 <- mask(futurePresence1, futurePresence1, maskvalue = FALSE)
 
 
-### Species 2 ###
+### Species 2 
 
 # Calculate predictions for present and future
-pg2Future <- predict(future.bio.data, gm2, ext =  megarhyssaPrep$e, type = "response")
-pg2Future <- crop(pg2Future,  megarhyssaPrep$e)
+pg2Future <- predict(future.bio.data, gm2, ext =  species1Prep$e, type = "response")
+pg2Future <- crop(pg2Future,  species1Prep$e)
 
 # Saves where the model predicts the species to be present in the future
 futurePresence2 <- pg2Future > tr2
 futurePresence2 <- mask(futurePresence2, futurePresence2, maskvalue = FALSE)
 
 
-### Overlap ###
+### Overlap 
 
 # Identify areas where both species are predicted to be present
 futureOverlap <- futurePresence1 & futurePresence2
 
-# Mask to remove FALSE values
+# Using the mask function to change FALSE values in the spatraster to NA
 futureOverlap <- mask(futureOverlap, futureOverlap, maskvalue = FALSE)
 
 
-### Area calculations ###
+### Area calculations 
 
+# Calculates the area of the predicted future distribution of species 1
 futureArea1 <- expanse(futurePresence1, unit = "km")
+# Calculates the area of the predicted future distribution of species 2
 futureArea2 <- expanse(futurePresence2, unit = "km")
+# Calculates the area of the predicted future overlap of species 1 and species 2
 futureAreaOverlap <- expanse(futureOverlap, unit = "km")
 
-futureOverlapMetric = futureAreaOverlap / ((futureArea1 + futureArea2) - futureAreaOverlap)
+# Calculates the overlap metric 
+futureOverlapMetric = futureAreaOverlap$area / ((futureArea1$area + futureArea2$area) - futureAreaOverlap$area)
 
-futureOverlapMetric
+# Stores the areas and overlap metric in a dataframe 
+futureResults <- data.frame(
+  Species_1_Area = futureArea1$area,
+  Species_2_Area = futureArea2$area,
+  Overlap_Area = futureAreaOverlap$area,
+  Overlap_Metric = futureOverlapMetric)
 
-### Plotting ###
+# Combines the future results dataframe with the current results dataframe for easier comparison
+fullResults <- overlapResults %>% 
+  bind_rows(futureResults) %>%  # Binds the two dataframes
+  mutate(Data = c("Present", "Future")) %>% # Adds a column to explain the datasets
+  relocate(Data, .before = Species_1_Area) # Moves the new column to the left 
 
-# Sorting out where the map is 
-#wrld_simpl <- vect(wrld_simpl)  # Convert to terra's vector format
-wrld_simpl <- crop(wrld_simpl, futurePresence1) 
+# Outputs the results as a table
+fullResults %>%
+  kbl() %>%
+  kable_styling(full_width = FALSE, position = "center")
+
+
+### Plotting 
 
 # Plotting the two predicted species distributions, and the predicted overlap
-plot(futurePresence1, col = "#88CCEE", legend = FALSE)
+plot(futurePresence1, col = "#88CCEE", main = "Predicted species Distribution Overlap, 2061-2080", legend = FALSE)
 plot(futurePresence2, col = "#CC6677", add = TRUE, legend = FALSE)
 plot(futureOverlap, col = "#332288", add = TRUE, legend = FALSE)
-plot(wrld_simpl, add = TRUE, border = "dark grey")
-legend(x = -76.2,
-       y = 28,
+plot(wrld_simpl_vect, add = TRUE, border = "dark grey")
+legend(x = -76.2, # Set legend x location 
+       y = 28, # Set legend y location 
+       # Set legend values
        legend = c("Megarhyssa macrura", "Tremex columba", "Overlap"),
+       # Set legend colours
        fill = c("#88CCEE", "#CC6677", "#332288"),
-       border = "black")
+       border = "black", # Add border to the legend
+       cex = 0.7) # Change the size of the legend 
 
 ```
+
+In order to predict the species distributions in
