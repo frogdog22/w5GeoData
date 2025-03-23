@@ -3,9 +3,11 @@ title: "Computing Assignment: Geo-data and Methods in R"
 format: 
   html:
     embed-resources: true
+    html-math-method: katex
 execute: 
   warning: false
-editor: visual
+editor: source
+bibliography: references.bib
 ---
 
 ```{r}
@@ -27,7 +29,7 @@ library(cols4all)
 wrld_simpl <- getMap(resolution = "coarse")
 ```
 
-#### Question 1 - Species 1 Distribution Modelling 
+#### Question 1 - Species 1 Distribution Modelling
 
 **Run linear models to predict the present-day distribution of species 1 using climate variables and use them to present a map of its current distribution. Which set of climatic variables best explain the current distribution of the species?**
 
@@ -177,18 +179,6 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
 ```
 
 ```{r}
-#| label: prepDataSpecies1
-#| output: false
-
-# Runs the prepData function on the first species, Megarhyssa macrura 
-species1Prep <- prepData(
-  genus = "megarhyssa",
-  species = "macrura ",
-  rawFilename = "megarhyssa.gbif.rds",
-  processedFilename = "megarhyssa.csv" 
-)
-```
-```{r}
 #| label: evaluateModelFuction
 #| output: false
 
@@ -237,65 +227,6 @@ evaluateModel <- function(modelList, envtrain, testpres, testbackg) {
   return(results)
 }
 
-```
-
-```{r}
-#| label: initialModels1
-
-# Sets up each bioclimatic variable alone as an initial list of models to test
-initialList1 <- list("gm1" = pa ~ bio1, 
-                    "gm2" = pa ~ bio2,
-                    "gm3" = pa ~ bio3,
-                    "gm4" = pa ~ bio4,
-                    "gm5" = pa ~ bio5, 
-                    "gm6" = pa ~ bio6,
-                    "gm7" = pa ~ bio7,
-                    "gm8" = pa ~ bio8,
-                    "gm9" = pa ~ bio9,
-                    "gm10" = pa ~ bio10)
-
-# Runs the evaluateModel function using data saved in the prepData function
-initialModels1 <- evaluateModel(modelList = initialList1,
-                               envtrain = species1Prep$envtrain,
-                               testpres = species1Prep$testpres,
-                               testbackg = species1Prep$testbackg)
-
-# Outputs the AUC and AIC for each model in a kable table
-initialModels1 %>%
-  kbl() %>%
-  kable_styling(full_width = FALSE, position = "center")
-
-# Runs a glm on every bioclimatic variable to evaluate which are significant 
-initialTest1 <- glm(pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10,
-    family = binomial(link = "logit"), 
-    data = species1Prep$envtrain)
-
-# Outputs the results of the glm
-summary(initialTest1)
-```
-
-```{r}
-#| label: refinedModels1
-
-# Sets up a second list of models to test based on the results of the initial list
-refinedList1 <- list("gm11"  = pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10, # All variables 
-                    "gm12"  = pa ~ bio1 + bio2 + bio3 + bio4 + bio9 + bio10, # Variables with *** significance
-                    "gm13" = pa ~ bio1 + bio2 + bio5, # Different combinations of top 4 high AUC low AIC
-                    "gm14" = pa ~ bio1 + bio2 + bio10,
-                    "gm15" = pa ~ bio1 + bio5 + bio10,
-                    "gm16" = pa ~ bio2 + bio5 + bio10,
-                    "gm17" = pa ~ bio1 + bio2 + bio5 + bio10)
-
-# Runs the evaluateModel function using data saved in the prepData function
-refinedModels1 <- evaluateModel(modelList = refinedList1,
-                               envtrain = species1Prep$envtrain,
-                               testpres = species1Prep$testpres,
-                               testbackg = species1Prep$testbackg)
-
-# Outputs the AUC and AIC for each model in a kable table
-refinedModels1 %>%
-  kbl() %>%
-  kable_styling(full_width = FALSE, position = "center")
 ```
 
 ```{r}
@@ -363,6 +294,97 @@ plottingModel <- function(formula, bio.data, species.coords, envtrain, testpres,
 ```
 
 ```{r}
+#| label: prepDataSpecies1
+#| output: false
+
+# Runs the prepData function on the first species, Megarhyssa macrura 
+species1Prep <- prepData(
+  genus = "megarhyssa",
+  species = "macrura ",
+  rawFilename = "megarhyssa.gbif.rds",
+  processedFilename = "megarhyssa.csv" 
+)
+```
+
+```{r}
+#| label: initialModels1
+
+# Sets up each bioclimatic variable alone as an initial list of models to test
+initialList1 <- list("gm1" = pa ~ bio1, 
+                    "gm2" = pa ~ bio2,
+                    "gm3" = pa ~ bio3,
+                    "gm4" = pa ~ bio4,
+                    "gm5" = pa ~ bio5, 
+                    "gm6" = pa ~ bio6,
+                    "gm7" = pa ~ bio7,
+                    "gm8" = pa ~ bio8,
+                    "gm9" = pa ~ bio9,
+                    "gm10" = pa ~ bio10,
+                    "gm11" = pa ~ bio11, 
+                    "gm12" = pa ~ bio12,
+                    "gm13" = pa ~ bio13,
+                    "gm14" = pa ~ bio14,
+                    "gm15" = pa ~ bio15, 
+                    "gm16" = pa ~ bio16,
+                    "gm17" = pa ~ bio17,
+                    "gm18" = pa ~ bio18,
+                    "gm19" = pa ~ bio19
+                    )
+
+# Runs the evaluateModel function using data saved in the prepData function
+initialModels1 <- evaluateModel(modelList = initialList1,
+                               envtrain = species1Prep$envtrain,
+                               testpres = species1Prep$testpres,
+                               testbackg = species1Prep$testbackg)
+
+# Outputs the AUC and AIC for each model in a kable table
+initialModels1 %>%
+  kbl() %>%
+  kable_styling(full_width = FALSE, position = "center")
+
+# Runs a glm on every bioclimatic variable to evaluate which are significant 
+initialTest1 <- glm(pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10 + bio11 + bio12 + bio13 + bio14 + bio15 + bio16 + bio17 + bio18 + bio19,
+    family = binomial(link = "logit"), 
+    data = species1Prep$envtrain)
+
+# Outputs the results of the glm
+summary(initialTest1)
+```
+
+```{r}
+#| label: refinedModels1
+
+# Sets up a second list of models to test based on the results of the initial list
+refinedList1 <- list(
+  # All variables 
+  "gm20"  = pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10 + bio11 + bio12   + bio13 + bio14 + bio15 + bio16 + bio17 + bio18 + bio19,
+  # Variables with *** significance
+  "gm21"  = pa ~ bio1 + bio3 + bio15, 
+  # Variables with ** significance
+  "gm22" = pa ~ bio1 + bio2 + bio3 + bio14 + bio15 + bio16 + bio17 + bio18 + bio19,
+  # Top 10 high AUC low AIC
+  "gm23" = pa ~ bio1 + bio2 + bio8 + bio10 + bio12 + bio14 + bio15 + bio17 + bio18 + bio19,
+  # Top 5 high AUC low AIC
+  "gm24" = pa ~ bio12 + bio14 + bio15 + bio17 + bio19,
+  # Variables with *** significance and top 5 high AUC low AIC
+  "gm25" = pa ~ bio1 + bio3 + bio12 + bio14 + bio15 + bio17 + bio19,
+  # gm22 with fewer precipitation variables
+  "gm26" = pa ~ bio1 + bio2 + bio3 + bio14 + bio15 + bio16 + bio17)
+ 
+
+# Runs the evaluateModel function using data saved in the prepData function
+refinedModels1 <- evaluateModel(modelList = refinedList1,
+                               envtrain = species1Prep$envtrain,
+                               testpres = species1Prep$testpres,
+                               testbackg = species1Prep$testbackg)
+
+# Outputs the AUC and AIC for each model in a kable table
+refinedModels1 %>%
+  kbl() %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+
+```{r}
 #| label: plotSpecies1
 #| results: "hide"
 #| fig-width: 8
@@ -370,7 +392,7 @@ plottingModel <- function(formula, bio.data, species.coords, envtrain, testpres,
 #| fig-cap: "Predicted occurance of Megarhyssa macrura based on the general linear model."
 
 # Runs the plottingModel function for species 1
-plottingModel(formula = pa ~ bio1 + bio2 + bio3 + bio4 + bio9 + bio10,
+plottingModel(formula = pa ~ bio1 + bio2 + bio3 + bio14 + bio15 + bio16 + bio17 + bio18 + bio19,
               bio.data = species1Prep$bio.data,
               species.coords = species1Prep$species.coords,
               envtrain = species1Prep$envtrain,
@@ -379,21 +401,28 @@ plottingModel(formula = pa ~ bio1 + bio2 + bio3 + bio4 + bio9 + bio10,
               e = species1Prep$e)
 ```
 
-#### Question 2 - Species 2 Distribution Modelling 
+The climatic variables that best describe *Megarhyssa macura* distribution were determined in two stages. First, every climatic variable was examined, looking for high AUC and low AIC and significance. Several models were then tested, including all variables, variables with high AUC and low AIC, and variables with high significance. Gm25 combined variables with high AUC and high significance due to the similarities in AUC and AIC between gm22 and gm23. The model with the highest AUC and lowest AIC included all of the bioclimatic variables. However, to avoid overfitting the model to the dataset, the next best model was used, gm22, including 9 variables. Annual mean temperature, mean diurnal range, isothermality, precipitation seasonality and precipitation of the driest month, wettest quarter, driest quarter, warmest quarter and coldest quarter. gm26 removed some of the precipitation factors from gm22, but this decreased AUC and increased AIC.
+
+#### Question 2 - Species 2 Distribution Modelling
 
 **Run linear models to predict the present-day distribution of species 2 using climate variables and use them to present a map of its current distribution. Which set of climatic variables best explain the current distribution of the species?**
 
 ```{r}
-#| label: prepDataTremex
+#| label: prepDataSpecies2
+#| output: false
 
-tremexPrep <- prepData(
+species2Prep <- prepData(
   genus = "tremex",
   species = "columba",
   rawFilename = "tremex.gbif.rds",
   processedFilename = "tremex.csv" 
 )
 ```
-```{r initialModel2}
+
+```{r}
+#| label: initialModels2
+
+# Sets up each bioclimatic variable alone as an initial list of models to test
 initialList2 <- list("gm1" = pa ~ bio1, 
                     "gm2" = pa ~ bio2,
                     "gm3" = pa ~ bio3,
@@ -403,60 +432,83 @@ initialList2 <- list("gm1" = pa ~ bio1,
                     "gm7" = pa ~ bio7,
                     "gm8" = pa ~ bio8,
                     "gm9" = pa ~ bio9,
-                    "gm10" = pa ~ bio10)
+                    "gm10" = pa ~ bio10,
+                    "gm11" = pa ~ bio11, 
+                    "gm12" = pa ~ bio12,
+                    "gm13" = pa ~ bio13,
+                    "gm14" = pa ~ bio14,
+                    "gm15" = pa ~ bio15, 
+                    "gm16" = pa ~ bio16,
+                    "gm17" = pa ~ bio17,
+                    "gm18" = pa ~ bio18,
+                    "gm19" = pa ~ bio19
+                    )
 
+# Runs the evaluateModel function using data saved in the prepData function
 initialModels2 <- evaluateModel(modelList = initialList2,
-                               envtrain = tremexPrep$envtrain,
-                               testpres = tremexPrep$testpres,
-                               testbackg = tremexPrep$testbackg)
+                               envtrain = species2Prep$envtrain,
+                               testpres = species2Prep$testpres,
+                               testbackg = species2Prep$testbackg)
 
+# Outputs the AUC and AIC for each model in a kable table
 initialModels2 %>%
   kbl() %>%
   kable_styling(full_width = FALSE, position = "center")
 
-initialTest2 <- glm(pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10,
+# Runs a glm on every bioclimatic variable to evaluate which are significant 
+initialTest2 <- glm(pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10 + bio11 + bio12 + bio13 + bio14 + bio15 + bio16 + bio17 + bio18 + bio19,
     family = binomial(link = "logit"), 
-    data = tremexPrep$envtrain)
+    data = species2Prep$envtrain)
+
+# Outputs the results of the glm
 summary(initialTest2)
 ```
 
 ```{r}
-#| label: refinedTremexModels
+#| label: refinedModels2
 
-refinedList <- list("gm11" = pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10, # All climatic variables 
-                    "gm12" = pa ~ bio2 + bio3 + bio9, # Variables with *** significance
-                    "gm13" = pa ~ bio1 + bio2 + bio3 + bio9, # Variables with ** significance 
-                    "gm14" = pa ~ bio1 + bio2 + bio3 + bio5 + bio6 + bio7 + bio9, # Variables with any significance
-                    "gm17" = pa ~ bio2 + bio3 + bio7, # Different combos of top 4 high AUC low AIC
-                    "gm18" = pa ~ bio2 + bio3 + bio10,
-                    "gm19" = pa ~ bio2 + bio7 + bio10,
-                    "gm20" = pa ~ bio3 + bio7 + bio10,
-                    "gm21" = pa ~ bio2 + bio3 + bio7 + bio10)
+# Sets up a second list of models to test based on the results of the initial list
+refinedList2 <- list(
+  # All climatic variables
+  "gm20" = pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10 + bio11 + bio12   + bio13 + bio14 + bio15 + bio16 + bio17 + bio18 + bio19,
+  # Variables with *** significance 
+  "gm21" = pa ~ bio1 + bio3 + bio9, 
+  # Variables with any significance
+  "gm22" = pa ~ bio1 + bio2 + bio3 + bio5 + bio6 + bio7 + bio9, 
+  # Top 5 high AUC low AIC
+  "gm23" = pa ~ bio12 + bio14 + bio15 + bio17 + bio19,
+  # Top 10 high AUC low AIC
+  "gm24" = pa ~ bio1 + bio2 + bio3 + bio10 + bio12 + bio14 + bio15 + bio17 + bio18 + bio19)
 
-refinedModels <- evaluateModel(modelList = refinedList,
-                               envtrain = tremexPrep$envtrain,
-                               testpres = tremexPrep$testpres,
-                               testbackg = tremexPrep$testbackg)
 
-refinedModels %>%
+# Runs the evaluateModel function using data saved in the prepData function
+refinedModels2 <- evaluateModel(modelList = refinedList2,
+                               envtrain = species2Prep$envtrain,
+                               testpres = species2Prep$testpres,
+                               testbackg = species2Prep$testbackg)
+
+# Outputs the AUC and AIC for each model in a kable table
+refinedModels2 %>%
   kbl() %>%
   kable_styling(full_width = FALSE, position = "center")
 ```
+
 ```{r}
-#| label: plotTremex
+#| label: plotSpecies2
 #| results: "hide"
 #| fig-width: 8
 #| fig-height: 12
 #| fig-cap: "Predicted occurance of Tremex columba based on the general linear model."
 
-plottingModel(formula = pa ~ bio2 + bio3 + bio7 + bio10,
-              bio.data = tremexPrep$bio.data,
-              species.coords = tremexPrep$species.coords,
-              envtrain = tremexPrep$envtrain,
-              testpres = tremexPrep$testpres,
-              testbackg = tremexPrep$testbackg,
-              e = tremexPrep$e)
+plottingModel(formula = pa ~ bio1 + bio2 + bio3 + bio5 + bio6 + bio7 + bio9,
+              bio.data = species2Prep$bio.data,
+              species.coords = species2Prep$species.coords,
+              envtrain = species2Prep$envtrain,
+              testpres = species2Prep$testpres,
+              testbackg = species2Prep$testbackg,
+              e = species2Prep$e)
 ```
+The same process was used to determine the climatic values that best describe species 2, Tremex columba, as were used to describe Megarhyssa macura. First, every climatic variable was tested, allowing for the selection of variables with high AUC, low AIC and high significance to be taken forward. Multiple models were then tested using these variables. The model with the highest AUC and lowest AIC was gm20, which used all variables. To avoid overfitting the data, the next best model, gm22, was used. The variables which were included in this model and are used to predict the distribution of the species are annual mean temperature, mean diurnal range, isothermality, max temperature of warmest month, min temperature of coldest month, temperature annual range and mean temperature of driest quarter. Of note is that these variables are mostly associated with temperature, whilst those of M. macura are more focussed on precipitation. 
 
 
 #### Question 3 - Distribution Overlap
@@ -464,25 +516,28 @@ plottingModel(formula = pa ~ bio2 + bio3 + bio7 + bio10,
 **Plot the overlap in distribution of the two species. Devise and calculate a metric for the degree of overlap between their ranges, explaining how you calculated it.**
 
 ```{r}
+#| label: distributionOverlap
+#| fig-cap: "Plot of the predicted species distributions of Megarhyssa macrura, Tremex columba and their overlap, based on glm models including climatic variables."
+
 ### First species ###
 
 # Runs the linear model
-gm1 <- glm(pa ~ bio1 + bio2 + bio5 + bio10,
+gm1 <- glm(pa ~ bio1 + bio2 + bio3 + bio14 + bio15 + bio16 + bio17 + bio18 + bio19,
           family = binomial(link = "logit"), 
-          data = megarhyssaPrep$envtrain)
+          data = species1Prep$envtrain)
 
-# Predict pg, a raster layer representing the probability of occurance 
+# Predict pg, a raster layer representing the probability of occurrence 
 # from the linear model for area of extent e
-pg1 <- predict(megarhyssaPrep$bio.data, 
+pg1 <- predict(species1Prep$bio.data, 
                gm1, 
-               ext = megarhyssaPrep$e, 
+               ext = species1Prep$e, 
                type = "response")
 
 # Crop pg to e
-pg1 <- crop(pg1, megarhyssaPrep$e)
+pg1 <- crop(pg1, species1Prep$e)
 
 # Evaluates how well the model predicts presence/absence at each point
-ge1 <- evaluate(megarhyssaPrep$testpres, megarhyssaPrep$testbackg, gm1)
+ge1 <- evaluate(species1Prep$testpres, species1Prep$testbackg, gm1)
 
 # This evaluation picks a threshold probability for defining presence/absence
 tr1 <- threshold(ge1, "prevalence")
@@ -495,22 +550,23 @@ presence1 <- mask(presence1, presence1, maskvalue = FALSE)
 ### Second species ###
 
 # Runs the linear model 
-gm2 <- glm(pa ~ bio2 + bio3 + bio7 + bio10,
+gm2 <- glm(formula = pa ~ bio1 + bio2 + bio3 + bio5 + bio6 + bio7 + bio9,
            family = binomial(link = "logit"), 
-           data = tremexPrep$envtrain)
+           data = species2Prep$envtrain)
 
 # Predict pg, a raster layer representing the probability of occurance 
-# from the linear model for area of extent e
-pg2 <- predict(tremexPrep$bio.data, 
+# from the linear model for area of extent e. The e of species 1 is used
+# so both are cropped to the same area
+pg2 <- predict(species2Prep$bio.data, 
                gm2, 
-               ext = megarhyssaPrep$e, 
+               ext = species1Prep$e, 
                type = "response")
 
 # Crop pg to e
-pg2 <- crop(pg2, megarhyssaPrep$e)
+pg2 <- crop(pg2, species1Prep$e)
 
 # Evaluates how well the model predicts presence/absence at each point
-ge2 <- evaluate(tremexPrep$testpres, tremexPrep$testbackg, gm2)
+ge2 <- evaluate(species2Prep$testpres, species2Prep$testbackg, gm2)
 
 # This evaluation picks a threshold probability for defining presence/absence
 tr2 <- threshold(ge2, "prevalence")
@@ -525,35 +581,63 @@ presence2 <- mask(presence2, presence2, maskvalue = FALSE)
 # Identify areas where both species are predicted to be present
 overlap <- presence1 & presence2
 
-# Mask to remove FALSE values
+# Using the mask function to change FALSE values in the spatraster to NA
 overlap <- mask(overlap, overlap, maskvalue = FALSE)
-
-plot(overlap)
-plot(wrld_simpl, add = TRUE, border = "dark grey")
 
 
 ### Area calculations ###
 
+# Calculates the area of the predicted distribution of species 1
 area1 <- expanse(presence1, unit = "km")
+# Calculates the area of the predicted distribution of species 1
 area2 <- expanse(presence2, unit = "km")
+# Calculates the area of the predicted overlap of species 1 and species 2
 areaOverlap <- expanse(overlap, unit = "km")
 
-overlapMetric = areaOverlap / ((area1 + area2) - areaOverlap)
+# Calculates the overlap metric 
+overlapMetric = areaOverlap$area / ((area1$area + area2$area) - areaOverlap$area)
 
-overlapMetric
+# Stores the areas and overlap metric in a dataframe 
+overlapResults <- data.frame(
+  Species_1_Area = area1$area,
+  Species_2_Area = area2$area,
+  Overlap_Area = areaOverlap$area,
+  Overlap_Metric = overlapMetric
+)
+
+# Outputs the dataframe as a kable 
+overlapResults %>%
+  kbl() %>%
+  kable_styling(full_width = FALSE, position = "center")
+
 
 ### Plotting ###
 
-# Sorting out where the map is 
-wrld_simpl <- vect(wrld_simpl)  # Convert to terra's vector format
-wrld_simpl <- crop(wrld_simpl, presence1) 
+# Converting the world map to vector format 
+wrld_simpl_vect <- vect(wrld_simpl) 
+# Ensuring the world map is cropped to the same as the species distributions 
+wrld_simpl_vect <- crop(wrld_simpl_vect, presence1) 
 
 # Plotting the two predicted species distributions, and the predicted overlap
-plot(presence1, col = "#88CCEE")
-plot(presence2, col = "#CC6677", add = TRUE)
-plot(overlap, col = "#332288", add = TRUE)
-plot(wrld_simpl, add = TRUE, border = "dark grey")
+plot(presence1, col = "#88CCEE", main = "Species Distribution Overlap",legend = FALSE)
+plot(presence2, col = "#CC6677", add = TRUE, legend = FALSE)
+plot(overlap, col = "#332288", add = TRUE, legend = FALSE)
+plot(wrld_simpl_vect, add = TRUE, border = "dark grey")
+legend(x = -76.2, # Set legend x location 
+       y = 28, # Set legend y location 
+       # Set legend values
+       legend = c("Megarhyssa macrura", "Tremex columba", "Overlap"),
+       # Set legend colours
+       fill = c("#88CCEE", "#CC6677", "#332288"),
+       border = "black", # Add border to the legend
+       cex = 0.7) # Change the size of the legend 
 ```
+Two spatrasters, presence1 and presence2, are set up to show the predicted areas each species is present in. These are used to create a third spatraster, showing the species overlap. The areas are then extracted from these, and used to create the overlap metric, the formulae for which is: 
+$$
+overlap\space metric = \frac {overlap\space area}{species\space 1\space area\space + species\space 1\space area\space - overlap\space area}
+$$
+
+This is also represented visually, through a plot showing the predicted distribution of the two species, and the predicted overlap. This was created using a colour blind friendly colour palette from the cols4all package, ensuring the graph is accessible to individuals with deuteranomia, protanopia and tritanopia [@Tennekes2023].
 
 #### Question 4 - Interspecies Distribution Dependence
 
@@ -579,10 +663,10 @@ summary(gm3)
 
 ```
 
-
-#### Question 5 - Future Distribution Prediction 
+#### Question 5 - Future Distribution Prediction
 
 **Predict the future distribution of each species using CMIP6 data for future climate and predict how the degree of overlap in ranges change will change in that time. Do you expect the two species to co-occur more often or less often than at the present?**
+
 ```{r}
 future.bio.data <- cmip6_world(
   model = "CanESM5",
@@ -651,7 +735,8 @@ plot(futurePresence1, col = "#88CCEE", legend = FALSE)
 plot(futurePresence2, col = "#CC6677", add = TRUE, legend = FALSE)
 plot(futureOverlap, col = "#332288", add = TRUE, legend = FALSE)
 plot(wrld_simpl, add = TRUE, border = "dark grey")
-legend("bottomright",
+legend(x = -76.2,
+       y = 28,
        legend = c("Megarhyssa macrura", "Tremex columba", "Overlap"),
        fill = c("#88CCEE", "#CC6677", "#332288"),
        border = "black")
