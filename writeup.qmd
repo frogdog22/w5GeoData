@@ -3,13 +3,14 @@ title: "Computing Assignment: Geo-data and Methods in R"
 format: 
   html:
     embed-resources: true
+execute: 
+  warning: false
 editor: visual
 ---
 
 ```{r}
-#| label: packages
+#| label: setup
 #| output: false
-#| warning: false
 
 # Load packages
 library(here)
@@ -21,7 +22,6 @@ library(tidyverse)
 library(kableExtra)
 library(gridExtra)
 library(cols4all)
-
   
 # Load world map
 wrld_simpl <- getMap(resolution = "coarse")
@@ -34,11 +34,29 @@ wrld_simpl <- getMap(resolution = "coarse")
 ```{r}
 #| label: prepDataFunction
 #| output: false
-#| warning: false
+
+#' Prep GBIF data Function 
+#' 
+#' This function downloads the GBIF data for a species and prepares it for 
+#' analysis through general linear models. It saves the variables needed
+#' for the gm model as a list to be used later.
+#'  
+#' @param genus The genus of the species of interest, non-capitalised
+#' @param species The species name of the species of interest, non-capitalised 
+#' @param rawFilename The name of the RDS file to store the raw GBIF data
+#' @param processedFilename The name of the csv file to store the cleaned data in
+#' 
+#' @return A list containing the parameters needed for further analysis 
+#' 
+#' @examples
+#' prepData(genus = "atelopus",
+#'          species = "zeteki",
+#'          rawFilename = "atelopus.gbif.rds",
+#'          processedFilename = "atelopus.csv")
 
 prepData <- function(genus, species, rawFilename, processedFilename) {
   
-  ### Downloading the data ###
+  ### Downloading the data
   
   # Checks if the species data is already downloaded 
   if (!file.exists(here("data", "raw", rawFilename))) {
@@ -51,7 +69,8 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
     species.gbif <- readRDS(here("data", "raw", rawFilename))
   }
   
-  ### Cleaning the data ###
+  
+  ### Cleaning the data 
   
   species.coords <- species.gbif %>% 
     # Pull out the lat and lon columns
@@ -62,7 +81,7 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
     as.data.frame()
   
   
-  ### Remove the ocean areas from the map ###
+  ### Remove the ocean areas from the map 
   
   # Get the map
   wrld_simpl <- getMap(resolution = "coarse")
@@ -98,7 +117,7 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
   colnames(species.coords) <- c("lon", "lat")
 
   
-  ### Extract climatic values for locations occupied by the species ###
+  ### Extract climatic values for locations occupied by the species 
   
   # Download bioclimatic data from the worldclim database and convert to Raster format
   bio.data <- worldclim_global(var = "bio", res = 10, path = here("data", "raw"))
@@ -113,7 +132,7 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
   write.csv(species.data, file = here("data", "processed", processedFilename), row.names = FALSE)
   
   
-  ### Generate random background points for comparison in model ###
+  ### Generate random background points for comparison in model 
   
   # Define study extent based on species occurrence data (with some buffer around it)
   e <- extent(
@@ -134,7 +153,7 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
   bio.data <- crop(bio.data, e)
   
   
-  ### Combine the presence data and the background data in one data frame ###
+  ### Combine the presence data and the background data in one data frame 
   
   train <- rbind(species.coords, bg)
   # Create a vector of 1s and 0s to indicate presence/absence
@@ -153,16 +172,16 @@ prepData <- function(genus, species, rawFilename, processedFilename) {
               bio.data = bio.data, 
               species.coords = species.coords,
               e = e,
-              pb_train = pb_train,
               train = train))
 }
 ```
 
 ```{r}
-#| label: prepDataMegarhyssa
-#| warning: false
+#| label: prepDataSpecies1
+#| output: false
 
-megarhyssaPrep <- prepData(
+# Runs the prepData function on the first species, Megarhyssa macrura 
+species1Prep <- prepData(
   genus = "megarhyssa",
   species = "macrura ",
   rawFilename = "megarhyssa.gbif.rds",
@@ -171,6 +190,26 @@ megarhyssaPrep <- prepData(
 ```
 ```{r}
 #| label: evaluateModelFuction
+#| output: false
+
+#' Evaluate general linear models
+#' 
+#' For every general linear model formula in a list, runs the general linear 
+#' model assuming binomial errors, extracts the AIC and AUC values, and saves
+#' the results in a dataframe. 
+#' 
+#' @param modelList # A list of names and formulae to be tested in the glm
+#' @param envtrain # The data to run the models on 
+#' @param testpres # The bioclimatic data for only the presence points
+#' @param testbackg # the bioclimatic data for only the background points 
+#' 
+#' @return A dataframe containing the model names, their AUC and AIC values 
+#' 
+#' @examples
+#' evaluateModel(modelList = list1,
+#'               envtrain = atelopusPrep$envtrain,
+#'               testpres = atelopusPrep$testpres,
+#'               testbackg = atelopusPrep$testbackg)
 
 evaluateModel <- function(modelList, envtrain, testpres, testbackg) {
   
@@ -180,17 +219,17 @@ evaluateModel <- function(modelList, envtrain, testpres, testbackg) {
                         AIC = numeric(), 
                         stringsAsFactors = FALSE)
   
-  # Set up the for loop 
+  # Set up the for loop, repeats for each model in the list 
   for (name in names(modelList)) {
     # Create the model
     model <- glm(modelList[[name]], family = binomial(link = "logit"), data = envtrain)
     # Evaluate model
     eval <- evaluate(testpres, testbackg, model)
-    # Extract AUC and AIC
+    # Extract the model's AUC
     auc <- eval@auc
-    # Extract AIC
+    # Extract the model's AIC
     aic <- AIC(model)
-    # Store results in data frame
+    # Store the AUC and AIC in the results dataframe
     results <- rbind(results, data.frame(Model = name, AUC = auc, AIC = aic))
   }
   
@@ -200,8 +239,11 @@ evaluateModel <- function(modelList, envtrain, testpres, testbackg) {
 
 ```
 
-```{r initialModelsMergarhyssa}
-initialList <- list("gm1" = pa ~ bio1, 
+```{r}
+#| label: initialModels1
+
+# Sets up each bioclimatic variable alone as an initial list of models to test
+initialList1 <- list("gm1" = pa ~ bio1, 
                     "gm2" = pa ~ bio2,
                     "gm3" = pa ~ bio3,
                     "gm4" = pa ~ bio4,
@@ -212,36 +254,46 @@ initialList <- list("gm1" = pa ~ bio1,
                     "gm9" = pa ~ bio9,
                     "gm10" = pa ~ bio10)
 
-initialModels <- evaluateModel(modelList = initialList,
-                               envtrain = megarhyssaPrep$envtrain,
-                               testpres = megarhyssaPrep$testpres,
-                               testbackg = megarhyssaPrep$testbackg)
+# Runs the evaluateModel function using data saved in the prepData function
+initialModels1 <- evaluateModel(modelList = initialList1,
+                               envtrain = species1Prep$envtrain,
+                               testpres = species1Prep$testpres,
+                               testbackg = species1Prep$testbackg)
 
-initialModels %>%
+# Outputs the AUC and AIC for each model in a kable table
+initialModels1 %>%
   kbl() %>%
   kable_styling(full_width = FALSE, position = "center")
+
+# Runs a glm on every bioclimatic variable to evaluate which are significant 
+initialTest1 <- glm(pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10,
+    family = binomial(link = "logit"), 
+    data = species1Prep$envtrain)
+
+# Outputs the results of the glm
+summary(initialTest1)
 ```
+
 ```{r}
-#| label: moreComplexModels
+#| label: refinedModels1
 
-refinedList <- list("gm11"  = pa ~ bio1 + bio2, 
-                    "gm12"  = pa ~ bio1 + bio5,
-                    "gm13"  = pa ~ bio1 + bio10,
-                    "gm14"  = pa ~ bio2 + bio5,
-                    "gm15"  = pa ~ bio2 + bio10,
-                    "gm16" = pa ~ bio5 + bio10,
-                    "gm17" = pa ~ bio1 + bio2 + bio5,
-                    "gm18" = pa ~ bio1 + bio2 + bio10,
-                    "gm19" = pa ~ bio1 + bio5 + bio10,
-                    "gm20" = pa ~ bio2 + bio5 + bio10,
-                    "gm21" = pa ~ bio1 + bio2 + bio5 + bio10)
+# Sets up a second list of models to test based on the results of the initial list
+refinedList1 <- list("gm11"  = pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10, # All variables 
+                    "gm12"  = pa ~ bio1 + bio2 + bio3 + bio4 + bio9 + bio10, # Variables with *** significance
+                    "gm13" = pa ~ bio1 + bio2 + bio5, # Different combinations of top 4 high AUC low AIC
+                    "gm14" = pa ~ bio1 + bio2 + bio10,
+                    "gm15" = pa ~ bio1 + bio5 + bio10,
+                    "gm16" = pa ~ bio2 + bio5 + bio10,
+                    "gm17" = pa ~ bio1 + bio2 + bio5 + bio10)
 
-refinedModels <- evaluateModel(modelList = refinedList,
-                               envtrain = megarhyssaPrep$envtrain,
-                               testpres = megarhyssaPrep$testpres,
-                               testbackg = megarhyssaPrep$testbackg)
+# Runs the evaluateModel function using data saved in the prepData function
+refinedModels1 <- evaluateModel(modelList = refinedList1,
+                               envtrain = species1Prep$envtrain,
+                               testpres = species1Prep$testpres,
+                               testbackg = species1Prep$testbackg)
 
-refinedModels %>%
+# Outputs the AUC and AIC for each model in a kable table
+refinedModels1 %>%
   kbl() %>%
   kable_styling(full_width = FALSE, position = "center")
 ```
@@ -249,13 +301,39 @@ refinedModels %>%
 ```{r}
 #| label: plotModelFunction 
 
+#' Plotting GLM results
+#' 
+#' Plots the GLM probability of occurance and the predicted presence/absence 
+#' locations for a species
+#' 
+#' @param formula The chosen GLM formula
+#' @param bio.data Bioclimatic data from worldclim database in raster format
+#' @param species.coords The lat and lon coords of the species presence data
+#' @param envtrain The data to run the model on 
+#' @param testpres The bioclimatic data for only the presence points
+#' @param testbackg The bioclimatic data for only the background points
+#' @param e Study extent, previously defined based on species occurrence data
+#' 
+#' @return Two plots: One of the GLM probability of species occurance, the
+#' other of the predicted presence/absence locations for the species
+#' 
+#' @examples 
+#' plottingModel(formula = pa ~ bio1 + bio2 + bio3 + bio4 + bio9,
+#'               bio.data = atelopusPrep$bio.data,
+#'               species.coords = atelopusPrep$species.coords,
+#'               envtrain = atelopusPrep$envtrain,
+#'               testpres = atelopusPrep$testpres,
+#'               testbackg = atelopusPrep$testbackg,
+#'               e = atelopusPrep$e)
+
 plottingModel <- function(formula, bio.data, species.coords, envtrain, testpres, testbackg, e){
   # Model 
   gm <- glm(formula,
             family = binomial(link = "logit"), 
             data = envtrain)
   
-  # Predict pg, a raster layer representing the probability of occurance from the linear model for area of     extent e
+  # Predict pg, a raster layer representing the probability of occurrence from
+  # the linear model for area of extent e
   pg <- predict(bio.data, gm, ext = e, type = "response")
   pg <- crop(pg, e)
   
@@ -267,33 +345,38 @@ plottingModel <- function(formula, bio.data, species.coords, envtrain, testpres,
   # Add country boundaries
   print(plot(wrld_simpl, add = TRUE, border = "dark grey"))
   # Add our observed locality data
-  print(points(species.coords, col="red", pch=20, cex=1.5))
+  print(points(species.coords, col = "red", pch = 20, cex = 0.75))
   
   # Evaluates how well the model predicts presence/absence at each point
   ge <- evaluate(testpres, testbackg, gm)
   print(ge)
   
-  # This evaluation picks a threshold probability for defining presence/absence
+  # Picks a threshold probability for defining presence/absence
   tr <- threshold(ge, "prevalence")
-  print(plot(pg > tr, main = "presence/absence"))
+  # Plots all areas with a probability greater than the threshold 
+  print(plot(pg > tr, main = "Predicted species presence/absence"))
+  # Adds the world map
   print(plot(wrld_simpl, add = TRUE, border = "dark grey"))
-  print(points(species.coords, col="red", pch = 20, cex = 1.5))
+  # Adds the species coords in red
+  print(points(species.coords, col = "red", pch = 20, cex = 0.75))
 }
 ```
 
 ```{r}
-#| label: plotMegarhyssa
+#| label: plotSpecies1
 #| results: "hide"
 #| fig-width: 8
 #| fig-height: 12
+#| fig-cap: "Predicted occurance of Megarhyssa macrura based on the general linear model."
 
-plottingModel(formula = pa ~ bio1 + bio2 + bio5 + bio10,
-              bio.data = megarhyssaPrep$bio.data,
-              species.coords = megarhyssaPrep$species.coords,
-              envtrain = megarhyssaPrep$envtrain,
-              testpres = megarhyssaPrep$testpres,
-              testbackg = megarhyssaPrep$testbackg,
-              e = megarhyssaPrep$e)
+# Runs the plottingModel function for species 1
+plottingModel(formula = pa ~ bio1 + bio2 + bio3 + bio4 + bio9 + bio10,
+              bio.data = species1Prep$bio.data,
+              species.coords = species1Prep$species.coords,
+              envtrain = species1Prep$envtrain,
+              testpres = species1Prep$testpres,
+              testbackg = species1Prep$testbackg,
+              e = species1Prep$e)
 ```
 
 #### Question 2 - Species 2 Distribution Modelling 
@@ -310,8 +393,8 @@ tremexPrep <- prepData(
   processedFilename = "tremex.csv" 
 )
 ```
-```{r initialModelsTremex}
-initialList <- list("gm1" = pa ~ bio1, 
+```{r initialModel2}
+initialList2 <- list("gm1" = pa ~ bio1, 
                     "gm2" = pa ~ bio2,
                     "gm3" = pa ~ bio3,
                     "gm4" = pa ~ bio4,
@@ -322,25 +405,29 @@ initialList <- list("gm1" = pa ~ bio1,
                     "gm9" = pa ~ bio9,
                     "gm10" = pa ~ bio10)
 
-initialModels <- evaluateModel(modelList = initialList,
+initialModels2 <- evaluateModel(modelList = initialList2,
                                envtrain = tremexPrep$envtrain,
                                testpres = tremexPrep$testpres,
                                testbackg = tremexPrep$testbackg)
 
-initialModels %>%
+initialModels2 %>%
   kbl() %>%
   kable_styling(full_width = FALSE, position = "center")
+
+initialTest2 <- glm(pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10,
+    family = binomial(link = "logit"), 
+    data = tremexPrep$envtrain)
+summary(initialTest2)
 ```
+
 ```{r}
 #| label: refinedTremexModels
 
-refinedList <- list("gm11" = pa ~ bio2 + bio3, 
-                    "gm12" = pa ~ bio2 + bio7,
-                    "gm13" = pa ~ bio2 + bio10,
-                    "gm14" = pa ~ bio3 + bio7,
-                    "gm15" = pa ~ bio3 + bio10, 
-                    "gm16" = pa ~ bio7 + bio10,
-                    "gm17" = pa ~ bio2 + bio3 + bio7,
+refinedList <- list("gm11" = pa ~ bio1 + bio2 + bio3 + bio4 + bio5 + bio6 + bio7 + bio8 + bio9 + bio10, # All climatic variables 
+                    "gm12" = pa ~ bio2 + bio3 + bio9, # Variables with *** significance
+                    "gm13" = pa ~ bio1 + bio2 + bio3 + bio9, # Variables with ** significance 
+                    "gm14" = pa ~ bio1 + bio2 + bio3 + bio5 + bio6 + bio7 + bio9, # Variables with any significance
+                    "gm17" = pa ~ bio2 + bio3 + bio7, # Different combos of top 4 high AUC low AIC
                     "gm18" = pa ~ bio2 + bio3 + bio10,
                     "gm19" = pa ~ bio2 + bio7 + bio10,
                     "gm20" = pa ~ bio3 + bio7 + bio10,
@@ -360,6 +447,7 @@ refinedModels %>%
 #| results: "hide"
 #| fig-width: 8
 #| fig-height: 12
+#| fig-cap: "Predicted occurance of Tremex columba based on the general linear model."
 
 plottingModel(formula = pa ~ bio2 + bio3 + bio7 + bio10,
               bio.data = tremexPrep$bio.data,
@@ -403,6 +491,7 @@ tr1 <- threshold(ge1, "prevalence")
 presence1 <- pg1 > tr1
 presence1 <- mask(presence1, presence1, maskvalue = FALSE)
 
+
 ### Second species ###
 
 # Runs the linear model 
@@ -430,6 +519,7 @@ tr2 <- threshold(ge2, "prevalence")
 presence2 <- pg2 > tr2
 presence2 <- mask(presence2, presence2, maskvalue = FALSE)
 
+
 ### Overlap ###
 
 # Identify areas where both species are predicted to be present
@@ -443,7 +533,6 @@ plot(wrld_simpl, add = TRUE, border = "dark grey")
 
 
 ### Area calculations ###
-
 
 area1 <- expanse(presence1, unit = "km")
 area2 <- expanse(presence2, unit = "km")
